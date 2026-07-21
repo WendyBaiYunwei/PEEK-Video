@@ -1,2 +1,2 @@
 # PEEK-Video
-Please see PEEK Video.mp4.
+Please see PEEK.mp4.
