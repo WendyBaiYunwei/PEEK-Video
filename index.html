@@ -1,34 +1,437 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PEEK</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background-color: #121212; /* Sleek dark background */
-        }
-        video {
-            max-width: 100%;
-            max-height: 100vh;
-            outline: none; /* Removes default browser outline when clicked */
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PEEK: One-Step-Look-Ahead Exposure Bias Correction</title>
+  <meta name="description" content="PEEK is a training-free, one-step-look-ahead correction for exposure bias in deterministic diffusion sampling. Explore the method, video, code, and poster.">
+  <meta name="author" content="Yunwei Bai, Ying Kiat Tan, Tsuhan Chen">
+  <meta name="theme-color" content="#003d7c">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://wendybaiyunwei.github.io/PEEK-Video/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PEEK: One-Step-Look-Ahead Exposure Bias Correction">
+  <meta property="og:description" content="A training-free sampler plugin that uses selected look-ahead queries to correct diffusion sampling trajectories.">
+  <meta property="og:url" content="https://wendybaiyunwei.github.io/PEEK-Video/">
+  <meta property="og:image" content="https://wendybaiyunwei.github.io/PEEK-Video/assets/PEEK_NeurIPS_2026_Poster_preview.png">
+  <meta property="og:image:alt" content="Preview of the PEEK research poster">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PEEK: One-Step-Look-Ahead Exposure Bias Correction">
+  <meta name="twitter:description" content="Project video, method overview, code, and poster for PEEK diffusion sampling.">
+  <meta name="twitter:image" content="https://wendybaiyunwei.github.io/PEEK-Video/assets/PEEK_NeurIPS_2026_Poster_preview.png">
+
+  <style>
+    :root {
+      --navy: #003d7c;
+      --navy-dark: #08294a;
+      --orange: #ef7c00;
+      --purple: #68448b;
+      --ink: #152235;
+      --muted: #526174;
+      --canvas: #f3f6f9;
+      --rule: #d9e1e8;
+      --soft-blue: #eaf2f8;
+      --soft-orange: #fff2e4;
+      --soft-purple: #f1ecf7;
+      --white: #ffffff;
+      --shadow: 0 20px 50px rgba(21, 34, 53, 0.1);
+      --radius: 22px;
+      --content: 1160px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+      text-rendering: optimizeLegibility;
+    }
+    img, video { display: block; max-width: 100%; }
+    a { color: inherit; }
+    a:focus-visible, video:focus-visible { outline: 3px solid var(--orange); outline-offset: 4px; }
+    h1, h2, h3, p { margin-top: 0; }
+
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: 0.75rem;
+      left: 0.75rem;
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      background: var(--ink);
+      color: var(--white);
+      transform: translateY(-160%);
+      transition: transform 160ms ease;
+    }
+    .skip-link:focus { transform: translateY(0); }
+    .top-rule { height: 7px; background: linear-gradient(90deg, var(--navy) 0 62%, var(--orange) 62% 82%, var(--purple) 82%); }
+
+    .site-header {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      border-bottom: 1px solid rgba(217, 225, 232, 0.86);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(16px);
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: min(calc(100% - 2rem), var(--content));
+      min-height: 68px;
+      margin: 0 auto;
+      gap: 1rem;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      color: var(--navy);
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-decoration: none;
+    }
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 9px;
+      background: var(--navy);
+      color: var(--white);
+      font-size: 0.82rem;
+      letter-spacing: -0.04em;
+    }
+    .nav-links { display: flex; align-items: center; gap: clamp(0.9rem, 3vw, 2rem); margin: 0; padding: 0; list-style: none; }
+    .nav-links a { color: var(--muted); font-size: 0.9rem; font-weight: 700; text-decoration: none; }
+    .nav-links a:hover { color: var(--navy); }
+
+    .section, .hero { width: min(calc(100% - 2rem), var(--content)); margin-inline: auto; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+      align-items: center;
+      min-height: calc(100vh - 75px);
+      padding-block: clamp(4rem, 9vw, 7.5rem);
+      gap: clamp(2.75rem, 7vw, 6rem);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin: 0 0 1rem;
+      color: var(--orange);
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { width: 30px; height: 3px; border-radius: 3px; background: currentColor; content: ""; }
+    h1 {
+      max-width: 780px;
+      margin-bottom: 1.25rem;
+      font-size: clamp(2.65rem, 6.3vw, 5.75rem);
+      line-height: 0.98;
+      letter-spacing: -0.052em;
+    }
+    h1 .accent { color: var(--navy); }
+    .authors { margin-bottom: 1.3rem; color: var(--navy); font-weight: 750; }
+    .authors span { color: var(--muted); font-weight: 550; }
+    .lead { max-width: 700px; margin-bottom: 1.7rem; color: var(--muted); font-size: clamp(1.05rem, 1.8vw, 1.25rem); line-height: 1.7; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0.72rem 1.1rem;
+      gap: 0.55rem;
+      border: 1px solid var(--rule);
+      border-radius: 11px;
+      background: var(--white);
+      color: var(--navy);
+      font-size: 0.92rem;
+      font-weight: 800;
+      text-decoration: none;
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+    .button:hover { border-color: var(--navy); box-shadow: 0 10px 24px rgba(0, 61, 124, 0.12); transform: translateY(-2px); }
+    .button-primary { border-color: var(--navy); background: var(--navy); color: var(--white); }
+    .button svg { width: 18px; height: 18px; flex: 0 0 auto; }
+
+    .trajectory-card {
+      position: relative;
+      overflow: hidden;
+      padding: clamp(1.5rem, 4vw, 2.5rem);
+      border: 1px solid var(--rule);
+      border-radius: 30px;
+      background: var(--white);
+      box-shadow: var(--shadow);
+    }
+    .trajectory-card::before { position: absolute; top: 0; right: 0; width: 55%; height: 8px; background: linear-gradient(90deg, var(--orange), var(--purple)); content: ""; }
+    .trajectory-card h2 { margin-bottom: 0.35rem; color: var(--navy); font-size: 1.15rem; }
+    .trajectory-card > p { margin-bottom: 1.5rem; color: var(--muted); font-size: 0.9rem; }
+    .trajectory { position: relative; display: grid; gap: 0.8rem; padding-left: 1.25rem; }
+    .trajectory::before { position: absolute; top: 18px; bottom: 18px; left: 8px; width: 2px; background: linear-gradient(var(--orange), var(--navy), var(--purple)); content: ""; }
+    .step { position: relative; padding: 0.85rem 0.9rem 0.85rem 1.2rem; border-radius: 12px; background: var(--canvas); }
+    .step::before {
+      position: absolute;
+      top: 1.14rem;
+      left: -1.56rem;
+      width: 11px;
+      height: 11px;
+      border: 3px solid var(--white);
+      border-radius: 50%;
+      background: var(--navy);
+      box-shadow: 0 0 0 1px var(--navy);
+      content: "";
+    }
+    .step:nth-child(2) { background: var(--soft-orange); }
+    .step:nth-child(2)::before { background: var(--orange); box-shadow: 0 0 0 1px var(--orange); }
+    .step:nth-child(4) { background: var(--soft-purple); }
+    .step:nth-child(4)::before { background: var(--purple); box-shadow: 0 0 0 1px var(--purple); }
+    .step strong, .step span { display: block; }
+    .step strong { font-size: 0.92rem; }
+    .step span { color: var(--muted); font-size: 0.8rem; }
+
+    .section { padding-block: clamp(4.5rem, 9vw, 7.5rem); }
+    .section-heading { max-width: 760px; margin-bottom: clamp(2rem, 4vw, 3.25rem); }
+    .section-heading h2 { margin-bottom: 1rem; font-size: clamp(2rem, 4.2vw, 3.4rem); line-height: 1.08; letter-spacing: -0.035em; }
+    .section-heading p { margin-bottom: 0; color: var(--muted); font-size: 1.05rem; }
+    .overview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    .info-card { min-height: 245px; padding: clamp(1.4rem, 3vw, 2rem); border: 1px solid var(--rule); border-radius: var(--radius); background: var(--white); }
+    .info-card:nth-child(2) { background: var(--soft-blue); }
+    .info-card:nth-child(3) { background: var(--soft-orange); }
+    .card-number { display: inline-grid; width: 36px; height: 36px; margin-bottom: 1.5rem; place-items: center; border-radius: 9px; background: var(--navy); color: var(--white); font-size: 0.78rem; font-weight: 850; }
+    .info-card:nth-child(3) .card-number { background: var(--orange); }
+    .info-card h3 { margin-bottom: 0.55rem; font-size: 1.15rem; }
+    .info-card p { margin-bottom: 0; color: var(--muted); font-size: 0.95rem; }
+    .evidence { display: grid; grid-template-columns: 1.3fr 0.7fr; margin-top: 1rem; border-radius: var(--radius); background: var(--navy-dark); color: var(--white); }
+    .evidence-copy, .evidence-stat { padding: clamp(1.5rem, 4vw, 2.5rem); }
+    .evidence-copy h3 { margin-bottom: 0.55rem; font-size: 1.35rem; }
+    .evidence-copy p, .evidence-stat p { margin-bottom: 0; color: rgba(255, 255, 255, 0.72); }
+    .evidence-stat { border-left: 1px solid rgba(255, 255, 255, 0.18); }
+    .evidence-stat strong { display: block; margin-bottom: 0.15rem; color: #ffaf59; font-size: clamp(2.2rem, 5vw, 3.8rem); line-height: 1; }
+
+    .video-section { width: 100%; padding-block: clamp(4.5rem, 9vw, 7.5rem); background: var(--ink); color: var(--white); }
+    .video-inner { width: min(calc(100% - 2rem), var(--content)); margin-inline: auto; }
+    .video-section .section-heading p { color: rgba(255, 255, 255, 0.66); }
+    .video-frame { overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: clamp(14px, 2vw, 24px); background: #000; box-shadow: 0 26px 70px rgba(0, 0, 0, 0.38); }
+    .video-frame video { width: 100%; aspect-ratio: 16 / 9; background: #000; }
+    .video-note { margin: 1rem 0 0; color: rgba(255, 255, 255, 0.58); font-size: 0.85rem; }
+
+    .resources-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+    .resource-card { overflow: hidden; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--white); box-shadow: 0 14px 36px rgba(21, 34, 53, 0.06); }
+    .resource-visual { display: grid; min-height: 290px; place-items: center; background: var(--soft-purple); }
+    .resource-visual img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+    .code-visual { padding: 2rem; background: radial-gradient(circle at 80% 20%, rgba(239, 124, 0, 0.18), transparent 34%), var(--soft-blue); }
+    .code-window { width: min(100%, 410px); overflow: hidden; border-radius: 14px; background: var(--navy-dark); box-shadow: 0 18px 38px rgba(8, 41, 74, 0.2); }
+    .code-window-bar { display: flex; padding: 0.8rem 1rem; gap: 0.38rem; background: rgba(255, 255, 255, 0.07); }
+    .code-window-bar span { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); }
+    .code-window pre { overflow: hidden; margin: 0; padding: 1.6rem; color: #d6e7f6; font: 0.86rem/1.8 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+    .code-window .code-accent { color: #ffaf59; }
+    .resource-copy { padding: clamp(1.4rem, 3vw, 2rem); }
+    .resource-label { margin-bottom: 0.45rem; color: var(--purple); font-size: 0.75rem; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; }
+    .resource-copy h3 { margin-bottom: 0.5rem; font-size: 1.45rem; }
+    .resource-copy p { margin-bottom: 1.25rem; color: var(--muted); }
+
+    .site-footer { padding: 2.2rem 1rem; border-top: 1px solid var(--rule); background: var(--white); }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; width: min(100%, var(--content)); margin: 0 auto; gap: 1rem; color: var(--muted); font-size: 0.85rem; }
+    .footer-inner p { margin: 0; }
+    .footer-inner a { color: var(--navy); font-weight: 750; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; min-height: auto; }
+      .trajectory-card { width: min(100%, 620px); }
+      .overview-grid, .resources-grid { grid-template-columns: 1fr; }
+      .evidence { grid-template-columns: 1fr; }
+      .evidence-stat { border-top: 1px solid rgba(255, 255, 255, 0.18); border-left: 0; }
+    }
+    @media (max-width: 580px) {
+      .nav { align-items: flex-start; min-height: auto; padding-block: 0.8rem; }
+      .nav-links { gap: 0.8rem; }
+      .nav-links li:first-child { display: none; }
+      .nav-links a { font-size: 0.8rem; }
+      .actions, .button { width: 100%; }
+      .footer-inner { align-items: flex-start; flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div class="top-rule" aria-hidden="true"></div>
 
-    <!-- The video player -->
-    <video controls autoplay muted playsinline>
-        <!-- Ensure your video file is named exactly 'PEEK.mp4' with matching capitalization -->
-        <source src="PEEK.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-    </video>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="PEEK project page home">
+        <span class="brand-mark" aria-hidden="true">P</span>
+        PEEK
+      </a>
+      <ul class="nav-links">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#video">Video</a></li>
+        <li><a href="#resources">Resources</a></li>
+      </ul>
+    </nav>
+  </header>
 
+  <main id="main-content">
+    <section class="hero" id="top" aria-labelledby="project-title">
+      <div>
+        <p class="eyebrow">Diffusion sampling, one step ahead</p>
+        <h1 id="project-title"><span class="accent">PEEK:</span> One-Step-Look-Ahead Exposure Bias Correction</h1>
+        <p class="authors">Yunwei Bai · Ying Kiat Tan · Tsuhan Chen<br><span>National University of Singapore</span></p>
+        <p class="lead">PEEK is a training-free plugin for deterministic diffusion samplers. At selected steps, it queries a provisional look-ahead state and uses the resulting prediction to correct the current sampling trajectory.</p>
+        <nav class="actions" aria-label="Project resources">
+          <a class="button button-primary" href="https://github.com/WendyBaiYunwei/PEEK" target="_blank" rel="noopener" aria-label="View the PEEK code repository on GitHub (opens in a new tab)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6m6-16-4 20"/></svg>
+            View code
+          </a>
+          <a class="button" href="assets/PEEK_NeurIPS_2026_Poster.pdf" target="_blank" rel="noopener" aria-label="Open the PEEK research poster PDF (opens in a new tab)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+            View poster
+          </a>
+          <a class="button" href="#video">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            Watch video
+          </a>
+        </nav>
+      </div>
+
+      <aside class="trajectory-card" aria-label="PEEK method summary">
+        <h2>A selected PEEK step</h2>
+        <p>The current state stays anchored while one provisional query supplies a higher-signal prediction.</p>
+        <div class="trajectory">
+          <div class="step"><strong>Predict</strong><span>Estimate the current clean sample</span></div>
+          <div class="step"><strong>Look ahead</strong><span>Take a provisional deterministic step</span></div>
+          <div class="step"><strong>Query again</strong><span>Evaluate the higher-signal look-ahead state</span></div>
+          <div class="step"><strong>Correct</strong><span>Use the selected interpolation and update</span></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section" id="overview" aria-labelledby="overview-title">
+      <div class="section-heading">
+        <p class="eyebrow">Method overview</p>
+        <h2 id="overview-title">Correcting train-test mismatch at inference</h2>
+        <p>Diffusion denoisers are trained on forward-corrupted data, yet sampling repeatedly feeds them states produced by earlier imperfect predictions. PEEK targets this exposure bias without retraining the model or replacing the underlying sampler.</p>
+      </div>
+
+      <div class="overview-grid">
+        <article class="info-card">
+          <span class="card-number" aria-hidden="true">01</span>
+          <h3>One-step look-ahead</h3>
+          <p>An eligible step first advances provisionally, then evaluates the denoiser at the resulting higher-signal state.</p>
+        </article>
+        <article class="info-card">
+          <span class="card-number" aria-hidden="true">02</span>
+          <h3>Metric-driven schedule</h3>
+          <p>A greedy calibration procedure selects interpolation positions by comparing candidates with ordinary sampling at matched denoiser-evaluation cost.</p>
+        </article>
+        <article class="info-card">
+          <span class="card-number" aria-hidden="true">03</span>
+          <h3>Training-free integration</h3>
+          <p>The selected schedule is fixed for deployment. PEEK wraps pretrained deterministic samplers without fine-tuning the denoiser.</p>
+        </article>
+      </div>
+
+      <div class="evidence">
+        <div class="evidence-copy">
+          <h3>Evaluated across diverse diffusion settings</h3>
+          <p>The manuscript studies pixel-space and latent-space models under unconditional, label-guided, and text-guided generation, with comparisons matched by denoiser evaluations.</p>
+        </div>
+        <div class="evidence-stat">
+          <strong>up to 49.3%</strong>
+          <p>reported FID reduction over an NFE-matched baseline in the manuscript.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="video-section" id="video" aria-labelledby="video-title">
+      <div class="video-inner">
+        <div class="section-heading">
+          <p class="eyebrow">Project video</p>
+          <h2 id="video-title">See the correction along the trajectory</h2>
+          <p>The original project video is retained here with native playback controls. It presents the motivation, look-ahead mechanism, and empirical comparisons.</p>
+        </div>
+        <div class="video-frame">
+          <video controls autoplay muted playsinline preload="metadata" aria-label="PEEK project video explaining one-step-look-ahead exposure bias correction">
+            <source src="PEEK.mp4" type="video/mp4">
+            Your browser does not support embedded MP4 video. You can <a href="PEEK.mp4">open the PEEK video directly</a>.
+          </video>
+        </div>
+        <p class="video-note">The video starts muted to respect browser autoplay policies. Use the player controls to enable audio.</p>
+      </div>
+    </section>
+
+    <section class="section" id="resources" aria-labelledby="resources-title">
+      <div class="section-heading">
+        <p class="eyebrow">Resources</p>
+        <h2 id="resources-title">Explore the implementation and poster</h2>
+        <p>The public repository provides the framework-neutral correction loop, schedule-search utilities, caches, examples, and lightweight tests. The poster summarizes the method and reported results.</p>
+      </div>
+
+      <div class="resources-grid">
+        <article class="resource-card">
+          <div class="resource-visual code-visual" aria-hidden="true">
+            <div class="code-window">
+              <div class="code-window-bar"><span></span><span></span><span></span></div>
+              <pre><span class="code-accent">from</span> peek <span class="code-accent">import</span> sample
+
+result = sample(
+    initial_state,
+    timesteps,
+    alpha_schedule,
+    backend,
+    method=<span class="code-accent">"peek"</span>,
+)</pre>
+            </div>
+          </div>
+          <div class="resource-copy">
+            <p class="resource-label">Implementation</p>
+            <h3>PEEK code</h3>
+            <p>Browse the minimal public implementation, installation instructions, runnable toy example, and optional Diffusers adapter.</p>
+            <a class="button button-primary" href="https://github.com/WendyBaiYunwei/PEEK" target="_blank" rel="noopener" aria-label="Browse the PEEK code repository on GitHub (opens in a new tab)">
+              Browse code
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+            </a>
+          </div>
+        </article>
+
+        <article class="resource-card">
+          <div class="resource-visual">
+            <img src="assets/PEEK_NeurIPS_2026_Poster_preview.png" alt="PEEK research poster with method diagram, quantitative results, and qualitative comparisons" width="2160" height="1620" loading="lazy">
+          </div>
+          <div class="resource-copy">
+            <p class="resource-label">Research summary</p>
+            <h3>Conference poster</h3>
+            <p>View the print-resolution poster for a compact summary of the motivation, method, calibration procedure, results, and limitations.</p>
+            <a class="button" href="assets/PEEK_NeurIPS_2026_Poster.pdf" target="_blank" rel="noopener" aria-label="Open the full-resolution PEEK research poster PDF (opens in a new tab)">
+              Open poster
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+            </a>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p>PEEK · National University of Singapore</p>
+      <p><a href="#top">Back to top</a></p>
+    </div>
+  </footer>
 </body>
 </html>
